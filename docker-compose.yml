@@ -1,0 +1,61 @@
+version: '2'
+
+services:
+  loraserver:
+    build: ./lora-server
+    image: fculpo/loraserver
+    links:
+      - loraserver-db
+      - redis
+      - mosquitto
+    environment:
+      - POSTGRES_DSN=postgres://loraserver:loraserver@loraserver-db/loraserver?sslmode=disable
+      - DB_AUTOMIGRATE=true
+      - NET_ID=010203
+      - REDIS_URL=redis://redis:6379
+      - GW_MQTT_SERVER=tcp://mosquitto:1883
+      - APP_MQTT_SERVER=tcp://mosquitto:1883
+      - BAND=EU_863_870
+      - AS_SERVER=lora-app-server:8001
+
+  lora-app-server:
+    build: ./lora-appserver
+    image: fculpo/lora-app-server
+    links:
+      - lora-appserver-db
+      - redis
+      - mosquitto
+    volumes:
+      - ./lora-appserver/http-cert.pem:/tmp/http-cert.pem:ro
+      - ./lora-appserver/http-key.pem:/tmp/http-key.pem:ro
+    environment:
+      - POSTGRES_DSN=postgres://loraappserver:loraappserver@lora-appserver-db/loraappserver?sslmode=disable
+      - DB_AUTOMIGRATE=true
+      - REDIS_URL=redis://redis:6379
+      - MQTT_SERVER=tcp://mosquitto:1883
+      - JWT_SECRET=123456789
+      - HTTP_TLS_CERT=/tmp/http-cert.pem
+      - HTTP_TLS_KEY=/tmp/http-key.pem
+      - NS_SERVER=loraserver:8000
+    ports:
+      - 8080:8080
+  
+  loraserver-db:
+    image: postgres:9.5
+    environment:
+      - POSTGRES_PASSWORD=loraserver
+      - POSTGRES_USER=loraserver
+      - POSTGRES_DB=loraserver
+
+  lora-appserver-db:
+    image: postgres:9.5
+    environment:
+      - POSTGRES_PASSWORD=loraappserver
+      - POSTGRES_USER=loraappserver
+      - POSTGRES_DB=loraappserver
+
+  redis:
+    image: redis:3.0.7-alpine
+
+  mosquitto:
+    image: ansi/mosquitto
