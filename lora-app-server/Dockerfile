@@ -9,8 +9,9 @@ RUN useradd -ms /bin/bash lorauser
 USER lorauser
 WORKDIR /home/lorauser
 
-RUN wget https://github.com/brocaar/loraserver/releases/download/0.16.1/loraserver_0.16.1_linux_amd64.tar.gz -O loraserver.tar.gz \
- && tar xvf loraserver.tar.gz
+RUN wget https://github.com/brocaar/lora-app-server/releases/download/0.7.2/lora_app_server_0.7.2_linux_amd64.tar.gz -O lora-app-server.tar.gz \
+ && tar xvf lora-app-server.tar.gz
 
-CMD ./loraserver
+CMD ./lora-app-server
 
+EXPOSE 8080

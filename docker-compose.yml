@@ -1,15 +1,15 @@
 version: '2'
 
 services:
-  loraserver:
+  lora-server:
     build: ./lora-server
     image: fculpo/loraserver
     links:
-      - loraserver-db
+      - lora-server-db
       - redis
       - mosquitto
     environment:
-      - POSTGRES_DSN=postgres://loraserver:loraserver@loraserver-db/loraserver?sslmode=disable
+      - POSTGRES_DSN=postgres://loraserver:loraserver@lora-server-db/loraserver?sslmode=disable
       - DB_AUTOMIGRATE=true
       - NET_ID=010203
       - REDIS_URL=redis://redis:6379
@@ -18,41 +18,68 @@ services:
       - BAND=EU_863_870
       - AS_SERVER=lora-app-server:8001
 
+  lora-gateway-bridge:
+    build: ./lora-gateway-bridge
+    image: fculpo/lora-gateway-bridge
+    links:
+      - mosquitto
+    environment:
+      # ip:port to bind the UDP listener to (default: "0.0.0.0:1700")
+      - UDP_BIND=0.0.0.0:1700
+      # mqtt server (e.g. scheme://host:port where scheme is tcp, ssl or ws) (default: "tcp://127.0.0.1:1883")
+      - MQTT_SERVER=tcp://mosquitto:1883
+      # mqtt server username (optional)
+      - MQTT_USERNAME=
+      # mqtt server password (optional)
+      - MQTT_PASSWORD=
+      # debug=5, info=4, warning=3, error=2, fatal=1, panic=0 (default: 4)
+      - LOG_LEVEL=4
+      # skip the CRC status-check of received packets
+      - SKIP_CRC_CHECK=false
+    ports:
+      - 1700/udp:1700/udp
+
   lora-app-server:
-    build: ./lora-appserver
+    build: ./lora-app-server
     image: fculpo/lora-app-server
     links:
-      - lora-appserver-db
+      - lora-app-server-db
+      - lora-server
       - redis
       - mosquitto
     volumes:
-      - ./lora-appserver/http-cert.pem:/tmp/http-cert.pem:ro
-      - ./lora-appserver/http-key.pem:/tmp/http-key.pem:ro
+      - ./lora-app-server/ssl:/home/lorauser/ssl:ro
     environment:
-      - POSTGRES_DSN=postgres://loraappserver:loraappserver@lora-appserver-db/loraappserver?sslmode=disable
+      - POSTGRES_DSN=postgres://loraappserver:loraappserver@lora-app-server-db/loraappserver?sslmode=disable
       - DB_AUTOMIGRATE=true
       - REDIS_URL=redis://redis:6379
       - MQTT_SERVER=tcp://mosquitto:1883
       - JWT_SECRET=123456789
-      - HTTP_TLS_CERT=/tmp/http-cert.pem
-      - HTTP_TLS_KEY=/tmp/http-key.pem
-      - NS_SERVER=loraserver:8000
+      - HTTP_TLS_CERT=/home/lorauser/ssl/http-cert.pem
+      - HTTP_TLS_KEY=/home/lorauser/ssl/http-key.pem
+      - NS_SERVER=lora-server:8000
     ports:
       - 8080:8080
   
-  loraserver-db:
+  lora-server-db:
     image: postgres:9.5
     environment:
       - POSTGRES_PASSWORD=loraserver
       - POSTGRES_USER=loraserver
       - POSTGRES_DB=loraserver
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ./data/lora-server-db:/var/lib/postgresql/data/pgdata
 
-  lora-appserver-db:
+  lora-app-server-db:
     image: postgres:9.5
     environment:
       - POSTGRES_PASSWORD=loraappserver
       - POSTGRES_USER=loraappserver
       - POSTGRES_DB=loraappserver
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ./data/lora-app-server-db:/var/lib/postgresql/data/pgdata
 
   redis:
     image: redis:3.0.7-alpine

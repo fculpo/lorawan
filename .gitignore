@@ -1,1 +1,2 @@
-*.pem
+lora-app-server/ssl/
+data/
